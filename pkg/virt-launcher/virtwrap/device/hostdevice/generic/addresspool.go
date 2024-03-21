@@ -20,6 +20,8 @@
 package generic
 
 import (
+	"fmt"
+
 	v1 "kubevirt.io/api/core/v1"
 
 	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/device/hostdevice"
@@ -53,5 +55,6 @@ func extractResources(hostDevices []v1.HostDevice) []string {
 	for resource, _ := range resourceSet {
 		resources = append(resources, resource)
 	}
+	fmt.Println("resources+resources+resources: ", resources)
 	return resources
 }

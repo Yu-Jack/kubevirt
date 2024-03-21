@@ -20,13 +20,14 @@
 package device_manager
 
 import (
+	"context"
+	"fmt"
 	"math"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"golang.org/x/net/context"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8scli "k8s.io/client-go/kubernetes/typed/core/v1"
 
@@ -238,8 +239,15 @@ func (c *DeviceController) updatePermittedHostDevicePlugins() []Device {
 	}
 
 	for resourceName, pluginDevices := range discoverAllowedUSBDevices(hostDevs.USB) {
+		fmt.Printf("pluginDevices: %#v\n", pluginDevices)
 		permittedDevices = append(permittedDevices, NewUSBDevicePlugin(resourceName, pluginDevices))
 	}
+
+	fmt.Println("----device_controller")
+	for _, dd := range permittedDevices {
+		fmt.Println(dd.GetDeviceName())
+	}
+	fmt.Println("----device_controller")
 
 	return permittedDevices
 }

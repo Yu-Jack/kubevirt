@@ -59,6 +59,8 @@ func (p *AddressPool) load(resourcePrefix string, resources []string) {
 			p.addressesByResource[resource] = nil
 		}
 	}
+
+	fmt.Println("p.addressesByResource: ", p.addressesByResource)
 }
 
 // Pop gets the next address available to a particular resource. The
@@ -70,6 +72,8 @@ func (p *AddressPool) Pop(resource string) (string, error) {
 	if !exists {
 		return "", fmt.Errorf("resource %s does not exist", resource)
 	}
+
+	fmt.Println("addresses.Pop: ", addresses)
 
 	if len(addresses) > 0 {
 		selectedAddress := addresses[0]

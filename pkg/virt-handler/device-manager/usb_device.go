@@ -112,11 +112,19 @@ func (pd *PluginDevices) toKubeVirtDevicePlugin() *pluginapi.Device {
 }
 
 func (plugin *USBDevicePlugin) FindDevice(pluginDeviceID string) *PluginDevices {
+	fmt.Println("====FindDevice")
 	for _, pd := range plugin.devices {
+		for _, a := range pd.Devices {
+			fmt.Printf("%#v\n", a)
+		}
+	}
+	for _, pd := range plugin.devices {
+		fmt.Println(pd.ID)
 		if pd.ID == pluginDeviceID {
 			return pd
 		}
 	}
+	fmt.Println("====FindDevice")
 	return nil
 }
 
@@ -343,6 +351,11 @@ func (plugin *USBDevicePlugin) ListAndWatch(_ *pluginapi.Empty, lws pluginapi.De
 		response := pluginapi.ListAndWatchResponse{
 			Devices: devices,
 		}
+		fmt.Println("==============")
+		for _, device := range devices {
+			fmt.Printf("%#v\n", device)
+		}
+		fmt.Println("==============")
 		err := lws.Send(&response)
 		if err != nil {
 			plugin.logger.Reason(err).Warningf("Failed to send device plugin %s",
@@ -379,10 +392,13 @@ func (plugin *USBDevicePlugin) Allocate(_ context.Context, allocRequest *plugina
 	allocResponse := new(pluginapi.AllocateResponse)
 	env := make(map[string]string)
 	for _, request := range allocRequest.ContainerRequests {
+		fmt.Println("=========request")
+		fmt.Printf("%#v\n", request)
+		fmt.Println("=========request")
+
 		containerResponse := &pluginapi.ContainerAllocateResponse{}
 		for _, id := range request.DevicesIDs {
 			plugin.logger.V(2).Infof("usb device id: %s", id)
-
 			pluginDevices := plugin.FindDevice(id)
 			if pluginDevices == nil {
 				plugin.logger.V(2).Infof("usb disappeared: %s", id)
@@ -390,6 +406,7 @@ func (plugin *USBDevicePlugin) Allocate(_ context.Context, allocRequest *plugina
 			}
 
 			deviceSpecs := []*pluginapi.DeviceSpec{}
+			fmt.Println("len(pluginDevices.Device): ", len(pluginDevices.Devices))
 			for _, dev := range pluginDevices.Devices {
 				spath, err := safepath.JoinAndResolveWithRelativeRoot(util.HostRootMount, dev.DevicePath)
 				if err != nil {
@@ -404,11 +421,16 @@ func (plugin *USBDevicePlugin) Allocate(_ context.Context, allocRequest *plugina
 				// We might have more than one USB device per resource name
 				key := util.ResourceNameToEnvVar(v1.USBResourcePrefix, plugin.resourceName)
 				value := fmt.Sprintf("%d:%d", dev.Bus, dev.DeviceNumber)
+				fmt.Println("+++++deiceSpec")
+				fmt.Println(env)
+				fmt.Println(key, value)
 				if previous, exist := env[key]; exist {
+					fmt.Println("previous: ", previous)
 					env[key] = fmt.Sprintf("%s,%s", previous, value)
 				} else {
 					env[key] = value
 				}
+				fmt.Println("+++++deiceSpec")
 
 				deviceSpecs = append(deviceSpecs, &pluginapi.DeviceSpec{
 					ContainerPath: dev.DevicePath,
@@ -419,6 +441,12 @@ func (plugin *USBDevicePlugin) Allocate(_ context.Context, allocRequest *plugina
 			containerResponse.Envs = env
 			containerResponse.Devices = append(containerResponse.Devices, deviceSpecs...)
 		}
+		fmt.Println("===containerResponse")
+		fmt.Printf("%#v\n", containerResponse)
+		for _, d := range containerResponse.Devices {
+			fmt.Printf("%#v\n", d)
+		}
+		fmt.Println("===containerResponse")
 		allocResponse.ContainerResponses = append(allocResponse.ContainerResponses, containerResponse)
 	}
 
@@ -613,6 +641,7 @@ func discoverAllowedUSBDevices(usbs []v1.USBHostDevice) map[string][]*PluginDevi
 		index := 0
 		usbdevs, foundAll := localDevices.fetch(usbConfig.Selectors)
 		for foundAll {
+			fmt.Println("len(usbdevs): ", resourceName, index, len(usbdevs))
 			// Create new USB Device Plugin with found USB Devices for this resource name
 			pluginDevices := newPluginDevices(resourceName, index, usbdevs)
 			plugins[resourceName] = append(plugins[resourceName], pluginDevices)
