@@ -32,6 +32,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	v1 "kubevirt.io/api/core/v1"
 
@@ -252,6 +253,15 @@ func fuzzFuncs(options ...fuzzOption) []interface{} {
 			objectmeta.DeletionGracePeriodSeconds = nil
 			objectmeta.Generation = 0
 			objectmeta.ManagedFields = nil
+		},
+		func(obj *intstr.IntOrString, c gofuzz.Continue) {
+			// IntOrString.Type must be either 0 (Int) or 1 (String)
+			// to avoid "impossible IntOrString.Type" panic during JSON marshaling
+			if c.RandBool() {
+				*obj = intstr.FromInt(c.Intn(100000))
+			} else {
+				*obj = intstr.FromString(c.RandString())
+			}
 		},
 		func(obj *corev1.URIScheme, c gofuzz.Continue) {
 			pickType(addSyntaxErrors, obj, []corev1.URIScheme{corev1.URISchemeHTTP, corev1.URISchemeHTTPS}, c)
