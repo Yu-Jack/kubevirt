@@ -284,6 +284,18 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 	interfaceStatus []api.InterfaceStatus, osInfo *api.GuestOSInfo, vmi *v1.VirtualMachineInstance, fsFreezeStatus *api.FSFreeze,
 	metadataCache *metadata.Cache) {
 
+	log.Log.Infof("eventCallback START: domain=%p, client=%p, events=%p, vmi=%p", domain, client, events, vmi)
+	if domain != nil {
+		log.Log.Infof("eventCallback: domain namespace=%s, name=%s", domain.ObjectMeta.Namespace, domain.ObjectMeta.Name)
+	} else {
+		log.Log.Errorf("eventCallback: domain is nil!")
+	}
+	if libvirtEvent.Event != nil {
+		log.Log.Infof("eventCallback: libvirtEvent.Event=%d, Detail=%d", libvirtEvent.Event.Event, libvirtEvent.Event.Detail)
+	} else {
+		log.Log.Infof("eventCallback: libvirtEvent.Event is nil")
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			log.Log.Errorf("Panic in eventCallback: %v", r)
@@ -296,15 +308,18 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 		}
 	}()
 
+	log.Log.Infof("About to call LookupDomainByName")
 	d, err := c.LookupDomainByName(util.DomainFromNamespaceName(domain.ObjectMeta.Namespace, domain.ObjectMeta.Name))
 	if err != nil {
 		if !domainerrors.IsNotFound(err) {
 			log.Log.Reason(err).Error("Could not fetch the Domain.")
 			return
 		}
+		log.Log.Infof("Domain not found in libvirt, setting status to NonExistent")
 		domain.SetState(api.NoState, api.ReasonNonExistent)
 	} else {
 		defer d.Free()
+		log.Log.Infof("Domain found in libvirt, fetching state")
 
 		// No matter which event, try to fetch the domain xml
 		// and the state. If we get a IsNotFound error, that
@@ -396,14 +411,22 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 			log.Log.Infof("libvirtEvent.Event is not nil, Event=%d, Detail=%d", libvirtEvent.Event.Event, libvirtEvent.Event.Detail)
 			if libvirtEvent.Event.Event == libvirt.DOMAIN_EVENT_DEFINED && libvirt.DomainEventDefinedDetailType(libvirtEvent.Event.Detail) == libvirt.DOMAIN_EVENT_DEFINED_ADDED {
 				log.Log.Infof("Handling DOMAIN_EVENT_DEFINED_ADDED")
+				log.Log.Infof("Creating watch.Event with Type: watch.Added, Object domain=%p", domain)
 				event := watch.Event{Type: watch.Added, Object: domain}
+				log.Log.Infof("About to call client.SendDomainEvent, client=%p, event=%+v", client, event)
 				client.SendDomainEvent(event)
+				log.Log.Infof("client.SendDomainEvent completed")
+				log.Log.Infof("About to call updateEvents, events channel=%p", events)
 				updateEvents(event, domain, events)
 				log.Log.Infof("DOMAIN_EVENT_DEFINED_ADDED handling completed")
 			} else if libvirtEvent.Event.Event == libvirt.DOMAIN_EVENT_STARTED && libvirt.DomainEventStartedDetailType(libvirtEvent.Event.Detail) == libvirt.DOMAIN_EVENT_STARTED_MIGRATED {
 				log.Log.Infof("Handling DOMAIN_EVENT_STARTED_MIGRATED")
+				log.Log.Infof("Creating watch.Event with Type: watch.Added, Object domain=%p", domain)
 				event := watch.Event{Type: watch.Added, Object: domain}
+				log.Log.Infof("About to call client.SendDomainEvent, client=%p, event=%+v", client, event)
 				client.SendDomainEvent(event)
+				log.Log.Infof("client.SendDomainEvent completed")
+				log.Log.Infof("About to call updateEvents, events channel=%p", events)
 				updateEvents(event, domain, events)
 				log.Log.Infof("DOMAIN_EVENT_STARTED_MIGRATED handling completed")
 			}
