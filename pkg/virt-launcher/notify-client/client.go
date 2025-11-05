@@ -345,16 +345,20 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 		log.Log.Infof("About to call GetDomainSpecWithRuntimeInfo")
 		spec, err := util.GetDomainSpecWithRuntimeInfo(d)
 		if err != nil {
+			log.Log.Infof("GetDomainSpecWithRuntimeInfo returned error: %v", err)
 			// NOTE: Getting domain metadata for a live-migrating VM isn't allowed
 			if !domainerrors.IsNotFound(err) && !domainerrors.IsInvalidOperation(err) {
 				log.Log.Reason(err).Error("Could not fetch the Domain specification.")
 				return
 			}
 		} else {
+			log.Log.Infof("Fetched domain spec successfully")
 			domain.ObjectMeta.UID = kubevirtMetadata.UID
 		}
 
+		log.Log.Infof("About to check spec, spec=%p", spec)
 		if spec != nil {
+			log.Log.Infof("Setting domain metadata")
 			spec.Metadata.KubeVirt = kubevirtMetadata
 			domain.Spec = *spec
 		}
