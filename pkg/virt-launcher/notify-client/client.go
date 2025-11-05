@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -244,6 +245,14 @@ type eventCaller struct {
 }
 
 func (e *eventCaller) printStatus(status *api.DomainStatus) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Log.Errorf("Panic in printStatus: %v", r)
+			log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+			log.Log.Errorf("status pointer: %p, status value: %+v", status, status)
+		}
+	}()
+
 	v := 2
 	if status.Status == e.domainStatus && status.Reason == e.domainStatusChangeReason {
 		// Status hasn't changed so log only in higher verbosity.
@@ -253,13 +262,39 @@ func (e *eventCaller) printStatus(status *api.DomainStatus) {
 }
 
 func (e *eventCaller) updateStatus(status *api.DomainStatus) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Log.Errorf("Panic in updateStatus: %v", r)
+			log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+			log.Log.Errorf("status pointer: %p, eventCaller: %p", status, e)
+			if status != nil {
+				log.Log.Errorf("status value: %+v", *status)
+			}
+		}
+	}()
+
+	log.Log.Infof("updateStatus: setting domainStatus from %v to %v", e.domainStatus, status.Status)
 	e.domainStatus = status.Status
+	log.Log.Infof("updateStatus: setting domainStatusChangeReason from %v to %v", e.domainStatusChangeReason, status.Reason)
 	e.domainStatusChangeReason = status.Reason
+	log.Log.Infof("updateStatus: completed successfully")
 }
 
 func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvirtEvent libvirtEvent, client *Notifier, events chan watch.Event,
 	interfaceStatus []api.InterfaceStatus, osInfo *api.GuestOSInfo, vmi *v1.VirtualMachineInstance, fsFreezeStatus *api.FSFreeze,
 	metadataCache *metadata.Cache) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Log.Errorf("Panic in eventCallback: %v", r)
+			log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+			if domain != nil {
+				log.Log.Errorf("Domain: namespace=%s, name=%s", domain.ObjectMeta.Namespace, domain.ObjectMeta.Name)
+			} else {
+				log.Log.Errorf("Domain is nil")
+			}
+		}
+	}()
 
 	d, err := c.LookupDomainByName(util.DomainFromNamespaceName(domain.ObjectMeta.Namespace, domain.ObjectMeta.Name))
 	if err != nil {
@@ -302,8 +337,11 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 			domain.Spec = *spec
 		}
 
+		log.Log.Infof("About to call printStatus, domain=%p, domain.Status=%+v", domain, domain.Status)
 		e.printStatus(&domain.Status)
+		log.Log.Infof("printStatus completed, about to call updateStatus")
 		e.updateStatus(&domain.Status)
+		log.Log.Infof("updateStatus completed")
 	}
 
 	switch domain.Status.Reason {
@@ -420,6 +458,14 @@ func (n *Notifier) StartDomainNotifier(
 
 	// Run the event process logic in a separate go-routine to not block libvirt
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Log.Errorf("Panic in domain notifier event loop: %v", r)
+				// Print stack trace for debugging
+				log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+			}
+		}()
+
 		var interfaceStatuses []api.InterfaceStatus
 		var guestOsInfo *api.GuestOSInfo
 		var fsFreezeStatus *api.FSFreeze
@@ -428,8 +474,10 @@ func (n *Notifier) StartDomainNotifier(
 		for {
 			select {
 			case event := <-eventChan:
+				log.Log.Infof("Received event from eventChan, Domain: %s", event.Domain)
 				metadataCache.ResetNotification()
 				domainCache = util.NewDomainFromName(event.Domain, vmi.UID)
+				log.Log.Infof("Created domainCache: namespace=%s, name=%s", domainCache.ObjectMeta.Namespace, domainCache.ObjectMeta.Name)
 				eventCaller.eventCallback(domainConn, domainCache, event, n, deleteNotificationSent, interfaceStatuses, guestOsInfo, vmi, fsFreezeStatus, metadataCache)
 				log.Log.Infof("Domain name event: %v", domainCache.Spec.Name)
 				if event.AgentEvent != nil {
