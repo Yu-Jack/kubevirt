@@ -344,6 +344,7 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 
 		log.Log.Infof("About to call GetDomainSpecWithRuntimeInfo")
 		spec, err := util.GetDomainSpecWithRuntimeInfo(d)
+		log.Log.Infof("After GetDomainSpecWithRuntimeInfo call, spec=%p, err=%v", spec, err)
 		if err != nil {
 			log.Log.Infof("GetDomainSpecWithRuntimeInfo returned error: %v", err)
 			// NOTE: Getting domain metadata for a live-migrating VM isn't allowed
