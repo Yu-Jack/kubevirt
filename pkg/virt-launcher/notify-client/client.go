@@ -298,12 +298,12 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 
 	defer func() {
 		if r := recover(); r != nil {
-			log.Log.Errorf("Panic in eventCallback: %v", r)
-			log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+			log.Log.Infof("Panic in eventCallback: %v", r)
+			log.Log.Infof("Stack trace:\n%s", string(debug.Stack()))
 			if domain != nil {
-				log.Log.Errorf("Domain: namespace=%s, name=%s", domain.ObjectMeta.Namespace, domain.ObjectMeta.Name)
+				log.Log.Infof("Domain: namespace=%s, name=%s", domain.ObjectMeta.Namespace, domain.ObjectMeta.Name)
 			} else {
-				log.Log.Errorf("Domain is nil")
+				log.Log.Infof("Domain is nil")
 			}
 		}
 	}()
@@ -321,6 +321,7 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 		defer d.Free()
 		log.Log.Infof("Domain found in libvirt, fetching state")
 
+		log.Log.Infof("Domain: %p", d)
 		// No matter which event, try to fetch the domain xml
 		// and the state. If we get a IsNotFound error, that
 		// means that the VirtualMachineInstance was removed.
