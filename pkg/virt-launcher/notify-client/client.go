@@ -326,13 +326,16 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 		// and the state. If we get a IsNotFound error, that
 		// means that the VirtualMachineInstance was removed.
 		status, reason, err := d.GetState()
+		log.Log.Infof("After GetState call, status=%d, reason=%d, err=%v", status, reason, err)
 		if err != nil {
+			log.Log.Infof("GetState returned error: %v", err)
 			if !domainerrors.IsNotFound(err) {
 				log.Log.Reason(err).Error("Could not fetch the Domain state.")
 				return
 			}
 			domain.SetState(api.NoState, api.ReasonNonExistent)
 		} else {
+			log.Log.Infof("Setting domain state to status=%d, reason=%d", status, reason)
 			domain.SetState(util.ConvState(status), util.ConvReason(status, reason))
 		}
 
