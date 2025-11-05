@@ -336,7 +336,10 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 			domain.SetState(util.ConvState(status), util.ConvReason(status, reason))
 		}
 
+		log.Log.Infof("About to call LoadKubevirtMetadata")
 		kubevirtMetadata := metadata.LoadKubevirtMetadata(metadataCache)
+
+		log.Log.Infof("About to call GetDomainSpecWithRuntimeInfo")
 		spec, err := util.GetDomainSpecWithRuntimeInfo(d)
 		if err != nil {
 			// NOTE: Getting domain metadata for a live-migrating VM isn't allowed
