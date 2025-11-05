@@ -137,6 +137,14 @@ func (n *Notifier) detectSocketPath() string {
 }
 
 func (n *Notifier) connect() error {
+	// PANIC RECOVERY: connect - gRPC connection establishment
+	defer func() {
+		if r := recover(); r != nil {
+			log.Log.Errorf("[connect] Panic: %v", r)
+			log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+		}
+	}()
+
 	if n.conn != nil {
 		// already connected
 		return nil
@@ -174,6 +182,14 @@ func (n *Notifier) connect() error {
 }
 
 func (n *Notifier) SendDomainEvent(event watch.Event) error {
+	// PANIC RECOVERY: SendDomainEvent - handles domain event JSON marshaling and sending
+	defer func() {
+		if r := recover(); r != nil {
+			log.Log.Errorf("[SendDomainEvent] Panic: %v", r)
+			log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+			log.Log.Errorf("Event type: %v, Event object type: %T", event.Type, event.Object)
+		}
+	}()
 
 	var domainJSON []byte
 	var statusJSON []byte
@@ -588,6 +604,14 @@ func (n *Notifier) StartDomainNotifier(
 	}()
 
 	domainEventLifecycleCallback := func(c *libvirt.Connect, d *libvirt.Domain, event *libvirt.DomainEventLifecycle) {
+		// PANIC RECOVERY: domainEventLifecycleCallback - libvirt lifecycle event handler
+		defer func() {
+			if r := recover(); r != nil {
+				log.Log.Errorf("[domainEventLifecycleCallback] Panic: %v", r)
+				log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+				log.Log.Errorf("Event: %v, Domain: %p", event, d)
+			}
+		}()
 
 		log.Log.Infof("DomainLifecycle event %s with event id %d reason %d received", event.String(), event.Event, event.Detail)
 		name, err := d.GetName()
@@ -602,6 +626,14 @@ func (n *Notifier) StartDomainNotifier(
 	}
 
 	domainEventDeviceAddedCallback := func(c *libvirt.Connect, d *libvirt.Domain, event *libvirt.DomainEventDeviceAdded) {
+		// PANIC RECOVERY: domainEventDeviceAddedCallback - libvirt device added event handler
+		defer func() {
+			if r := recover(); r != nil {
+				log.Log.Errorf("[domainEventDeviceAddedCallback] Panic: %v", r)
+				log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+			}
+		}()
+
 		log.Log.Infof("Domain Device Added event received")
 		name, err := d.GetName()
 		if err != nil {
@@ -615,6 +647,14 @@ func (n *Notifier) StartDomainNotifier(
 	}
 
 	domainEventDeviceRemovedCallback := func(c *libvirt.Connect, d *libvirt.Domain, event *libvirt.DomainEventDeviceRemoved) {
+		// PANIC RECOVERY: domainEventDeviceRemovedCallback - libvirt device removed event handler
+		defer func() {
+			if r := recover(); r != nil {
+				log.Log.Errorf("[domainEventDeviceRemovedCallback] Panic: %v", r)
+				log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+			}
+		}()
+
 		log.Log.Infof("Domain Device Removed event received")
 		name, err := d.GetName()
 		if err != nil {
@@ -629,6 +669,14 @@ func (n *Notifier) StartDomainNotifier(
 	}
 
 	domainEventMemoryDeviceSizeChange := func(c *libvirt.Connect, d *libvirt.Domain, event *libvirt.DomainEventMemoryDeviceSizeChange) {
+		// PANIC RECOVERY: domainEventMemoryDeviceSizeChange - libvirt memory device change event handler
+		defer func() {
+			if r := recover(); r != nil {
+				log.Log.Errorf("[domainEventMemoryDeviceSizeChange] Panic: %v", r)
+				log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+			}
+		}()
+
 		log.Log.Infof("Domain Memory Device size-change event received")
 		name, err := d.GetName()
 		if err != nil {
@@ -665,6 +713,15 @@ func (n *Notifier) StartDomainNotifier(
 	}
 
 	agentEventLifecycleCallback := func(c *libvirt.Connect, d *libvirt.Domain, event *libvirt.DomainEventAgentLifecycle) {
+		// PANIC RECOVERY: agentEventLifecycleCallback - guest agent lifecycle event handler
+		defer func() {
+			if r := recover(); r != nil {
+				log.Log.Errorf("[agentEventLifecycleCallback] Panic: %v", r)
+				log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+				log.Log.Errorf("Event state: %d, reason: %d", event.State, event.Reason)
+			}
+		}()
+
 		log.Log.Infof("GuestAgentLifecycle event state %d with reason %d received", event.State, event.Reason)
 		name, err := d.GetName()
 		if err != nil {
@@ -687,6 +744,15 @@ func (n *Notifier) StartDomainNotifier(
 }
 
 func (n *Notifier) SendK8sEvent(vmi *v1.VirtualMachineInstance, severity string, reason string, message string) error {
+	// PANIC RECOVERY: SendK8sEvent - handles K8s event creation and sending
+	defer func() {
+		if r := recover(); r != nil {
+			log.Log.Errorf("[SendK8sEvent] Panic: %v", r)
+			log.Log.Errorf("Stack trace:\n%s", string(debug.Stack()))
+			log.Log.Errorf("VMI: %p, severity: %s, reason: %s, message: %s", vmi, severity, reason, message)
+		}
+	}()
+
 	vmiRef, err := reference.GetReference(scheme, vmi)
 	if err != nil {
 		return err
