@@ -344,20 +344,30 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 		log.Log.Infof("updateStatus completed")
 	}
 
+	log.Log.Infof("After spec check, domain.Status.Reason=%s, domain=%p", domain.Status.Reason, domain)
+
 	switch domain.Status.Reason {
 	case api.ReasonNonExistent:
+		log.Log.Infof("Handling ReasonNonExistent case")
 		now := metav1.Now()
 		domain.ObjectMeta.DeletionTimestamp = &now
+		log.Log.Infof("About to call SendDomainEvent for ReasonNonExistent")
 		watchEvent := watch.Event{Type: watch.Modified, Object: domain}
 		client.SendDomainEvent(watchEvent)
+		log.Log.Infof("SendDomainEvent completed, about to call updateEvents")
 		updateEvents(watchEvent, domain, events)
+		log.Log.Infof("updateEvents completed for ReasonNonExistent")
 	case api.ReasonPausedIOError:
+		log.Log.Infof("Handling ReasonPausedIOError case")
 		domainDisksWithErrors, err := d.GetDiskErrors(0)
 		if err != nil {
 			log.Log.Reason(err).Error("Could not get disks with errors")
 		}
+		log.Log.Infof("Got disk errors, count=%d", len(domainDisksWithErrors))
 		for _, disk := range domainDisksWithErrors {
+			log.Log.Infof("Processing disk error, disk=%+v", disk)
 			volumeName := converter.GetVolumeNameByTarget(domain, disk.Disk)
+			log.Log.Infof("Got volume name: %s", volumeName)
 			var reasonError string
 			switch disk.Error {
 			case libvirt.DOMAIN_DISK_ERROR_NONE:
@@ -367,41 +377,60 @@ func (e *eventCaller) eventCallback(c cli.Connection, domain *api.Domain, libvir
 			case libvirt.DOMAIN_DISK_ERROR_NO_SPACE:
 				reasonError = fmt.Sprintf("VM Paused due to not enough space on volume: %s", volumeName)
 			}
+			log.Log.Infof("About to send K8s event for disk error: %s", reasonError)
 			err = client.SendK8sEvent(vmi, "Warning", "IOerror", reasonError)
 			if err != nil {
 				log.Log.Reason(err).Error(fmt.Sprintf("Could not send k8s event"))
 			}
+			log.Log.Infof("About to send domain event for disk error")
 			event := watch.Event{Type: watch.Modified, Object: domain}
 			client.SendDomainEvent(event)
+			log.Log.Infof("About to call updateEvents for disk error")
 			updateEvents(event, domain, events)
+			log.Log.Infof("updateEvents completed for disk error")
 		}
+		log.Log.Infof("ReasonPausedIOError case completed")
 	default:
+		log.Log.Infof("Handling default case, libvirtEvent.Event=%p", libvirtEvent.Event)
 		if libvirtEvent.Event != nil {
+			log.Log.Infof("libvirtEvent.Event is not nil, Event=%d, Detail=%d", libvirtEvent.Event.Event, libvirtEvent.Event.Detail)
 			if libvirtEvent.Event.Event == libvirt.DOMAIN_EVENT_DEFINED && libvirt.DomainEventDefinedDetailType(libvirtEvent.Event.Detail) == libvirt.DOMAIN_EVENT_DEFINED_ADDED {
+				log.Log.Infof("Handling DOMAIN_EVENT_DEFINED_ADDED")
 				event := watch.Event{Type: watch.Added, Object: domain}
 				client.SendDomainEvent(event)
 				updateEvents(event, domain, events)
+				log.Log.Infof("DOMAIN_EVENT_DEFINED_ADDED handling completed")
 			} else if libvirtEvent.Event.Event == libvirt.DOMAIN_EVENT_STARTED && libvirt.DomainEventStartedDetailType(libvirtEvent.Event.Detail) == libvirt.DOMAIN_EVENT_STARTED_MIGRATED {
+				log.Log.Infof("Handling DOMAIN_EVENT_STARTED_MIGRATED")
 				event := watch.Event{Type: watch.Added, Object: domain}
 				client.SendDomainEvent(event)
 				updateEvents(event, domain, events)
+				log.Log.Infof("DOMAIN_EVENT_STARTED_MIGRATED handling completed")
 			}
 		}
+		log.Log.Infof("About to check interfaceStatus, interfaceStatus=%p", interfaceStatus)
 		if interfaceStatus != nil {
+			log.Log.Infof("Setting domain.Status.Interfaces")
 			domain.Status.Interfaces = interfaceStatus
 		}
+		log.Log.Infof("About to check osInfo, osInfo=%p", osInfo)
 		if osInfo != nil {
+			log.Log.Infof("Setting domain.Status.OSInfo")
 			domain.Status.OSInfo = *osInfo
 		}
 
+		log.Log.Infof("About to check fsFreezeStatus, fsFreezeStatus=%p", fsFreezeStatus)
 		if fsFreezeStatus != nil {
+			log.Log.Infof("Setting domain.Status.FSFreezeStatus")
 			domain.Status.FSFreezeStatus = *fsFreezeStatus
 		}
 
+		log.Log.Infof("About to send final domain event, client=%p", client)
 		err := client.SendDomainEvent(watch.Event{Type: watch.Modified, Object: domain})
 		if err != nil {
 			log.Log.Reason(err).Error("Could not send domain notify event.")
 		}
+		log.Log.Infof("Default case completed successfully")
 	}
 }
 
