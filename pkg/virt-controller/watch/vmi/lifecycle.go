@@ -471,11 +471,6 @@ func (c *Controller) updateStatus(vmi *virtv1.VirtualMachineInstance, pod *k8sv1
 			}
 			log.Log.Object(vmi).V(5).Infof("setting VMI to failed while scheduled because pod does not exist")
 			vmiCopy.Status.Phase = virtv1.Failed
-			break
-		}
-
-		if err := c.updateVolumeStatus(vmiCopy, pod); err != nil {
-			return err
 		}
 	case vmi.IsWaitingForSync():
 		if vmi.DeletionTimestamp != nil {

@@ -611,51 +611,48 @@ func (c *VirtualMachineController) updateVolumeStatusesFromDomain(vmi *v1.Virtua
 	// used by unit test
 	hasHotplug := false
 
-	if len(vmi.Status.VolumeStatus) == 0 {
+	if domain == nil {
 		return hasHotplug
 	}
 
-	diskDeviceMap := make(map[string]string)
-	if domain != nil {
+	if len(vmi.Status.VolumeStatus) > 0 {
+		diskDeviceMap := make(map[string]string)
 		for _, disk := range domain.Spec.Devices.Disks {
-			// don't care about empty cdroms
-			if disk.Source.File != "" || disk.Source.Dev != "" {
-				diskDeviceMap[disk.Alias.GetName()] = disk.Target.Device
+			diskDeviceMap[disk.Alias.GetName()] = disk.Target.Device
+		}
+		specVolumeMap := make(map[string]v1.Volume)
+		for _, volume := range vmi.Spec.Volumes {
+			specVolumeMap[volume.Name] = volume
+		}
+		newStatusMap := make(map[string]v1.VolumeStatus)
+		newStatuses := make([]v1.VolumeStatus, 0)
+		needsRefresh := false
+		for _, volumeStatus := range vmi.Status.VolumeStatus {
+			tmpNeedsRefresh := false
+			if _, ok := diskDeviceMap[volumeStatus.Name]; ok {
+				volumeStatus.Target = diskDeviceMap[volumeStatus.Name]
 			}
+			if volumeStatus.HotplugVolume != nil {
+				hasHotplug = true
+				volumeStatus, tmpNeedsRefresh = c.updateHotplugVolumeStatus(vmi, volumeStatus, specVolumeMap)
+				needsRefresh = needsRefresh || tmpNeedsRefresh
+			}
+			if volumeStatus.MemoryDumpVolume != nil {
+				volumeStatus, tmpNeedsRefresh = c.updateMemoryDumpInfo(vmi, volumeStatus, domain)
+				needsRefresh = needsRefresh || tmpNeedsRefresh
+			}
+			newStatuses = append(newStatuses, volumeStatus)
+			newStatusMap[volumeStatus.Name] = volumeStatus
 		}
-	}
-	specVolumeMap := make(map[string]v1.Volume)
-	for _, volume := range vmi.Spec.Volumes {
-		specVolumeMap[volume.Name] = volume
-	}
-	newStatusMap := make(map[string]v1.VolumeStatus)
-	var newStatuses []v1.VolumeStatus
-	needsRefresh := false
-	for _, volumeStatus := range vmi.Status.VolumeStatus {
-		tmpNeedsRefresh := false
-		// relying on the fact that target will be "" if not in the map
-		// see updateHotplugVolumeStatus
-		volumeStatus.Target = diskDeviceMap[volumeStatus.Name]
-		if volumeStatus.HotplugVolume != nil {
-			hasHotplug = true
-			volumeStatus, tmpNeedsRefresh = c.updateHotplugVolumeStatus(vmi, volumeStatus, specVolumeMap)
-			needsRefresh = needsRefresh || tmpNeedsRefresh
+		sort.SliceStable(newStatuses, func(i, j int) bool {
+			return strings.Compare(newStatuses[i].Name, newStatuses[j].Name) == -1
+		})
+		if needsRefresh {
+			c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second)
 		}
-		if volumeStatus.MemoryDumpVolume != nil {
-			volumeStatus, tmpNeedsRefresh = c.updateMemoryDumpInfo(vmi, volumeStatus, domain)
-			needsRefresh = needsRefresh || tmpNeedsRefresh
-		}
-		newStatuses = append(newStatuses, volumeStatus)
-		newStatusMap[volumeStatus.Name] = volumeStatus
+		c.generateEventsForVolumeStatusChange(vmi, newStatusMap)
+		vmi.Status.VolumeStatus = newStatuses
 	}
-	sort.SliceStable(newStatuses, func(i, j int) bool {
-		return strings.Compare(newStatuses[i].Name, newStatuses[j].Name) == -1
-	})
-	if needsRefresh {
-		c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second)
-	}
-	c.generateEventsForVolumeStatusChange(vmi, newStatusMap)
-	vmi.Status.VolumeStatus = newStatuses
 
 	return hasHotplug
 }
@@ -852,10 +849,7 @@ func (c *VirtualMachineController) updateMemoryDumpInfo(vmi *v1.VirtualMachineIn
 		volumeStatus.Reason = VolumeMountedToPodReason
 		volumeStatus.MemoryDumpVolume.TargetFileName = dumpTargetFile(vmi.Name, volumeStatus.Name)
 	case v1.MemoryDumpVolumeInProgress:
-		var memoryDumpMetadata *api.MemoryDumpMetadata
-		if domain != nil {
-			memoryDumpMetadata = domain.Spec.Metadata.KubeVirt.MemoryDump
-		}
+		memoryDumpMetadata := domain.Spec.Metadata.KubeVirt.MemoryDump
 		if memoryDumpMetadata == nil || memoryDumpMetadata.FileName != volumeStatus.MemoryDumpVolume.TargetFileName {
 			// memory dump wasnt triggered yet
 			return volumeStatus, needsRefresh
@@ -2031,10 +2025,10 @@ func (c *VirtualMachineController) handleStartingVMI(
 		c.recorder.Event(vmi, k8sv1.EventTypeWarning, "HotplugFailed", err.Error())
 	}
 
-	if !c.hotplugVolumesReady(vmi) {
-		c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second*1)
-		return false, nil
-	}
+	// if !c.hotplugVolumesReady(vmi) {
+	// 	c.queue.AddAfter(controller.VirtualMachineInstanceKey(vmi), time.Second*1)
+	// 	return false, nil
+	// }
 
 	if c.clusterConfig.GPUsWithDRAGateEnabled() {
 		if !drautil.IsAllDRAGPUsReconciled(vmi, vmi.Status.DeviceStatus) {
