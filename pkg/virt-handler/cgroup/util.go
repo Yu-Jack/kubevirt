@@ -165,6 +165,12 @@ func generateDeviceRulesForVMI(vmi *v1.VirtualMachineInstance, isolationRes isol
 	}
 	vmiDeviceRules = append(vmiDeviceRules, vfioRules...)
 
+	usbRules, err := generateUSBDeviceRules(mountRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate USB device rules: %v", err)
+	}
+	vmiDeviceRules = append(vmiDeviceRules, usbRules...)
+
 	return vmiDeviceRules, nil
 }
 
@@ -204,6 +210,64 @@ func generateVFIODeviceRules(mountRoot *safepath.Path) ([]*devices.Rule, error) 
 		if rule != nil {
 			log.Log.V(loggingVerbosity).Infof("device rule for VFIO device %s: %v", entry.Name(), rule)
 			rules = append(rules, rule)
+		}
+	}
+	return rules, nil
+}
+
+// generateUSBDeviceRules scans /dev/bus/usb/ inside the container and creates
+// allow rules for all USB devices found. These devices are provisioned by
+// the USB device plugin and must be preserved in the cgroup device allowlist
+// when the v2 eBPF program is replaced by subsequent Set() calls (e.g. during
+// hotplug volume mounting).
+func generateUSBDeviceRules(mountRoot *safepath.Path) ([]*devices.Rule, error) {
+	usbBasePath, err := safepath.JoinNoFollow(mountRoot, filepath.Join("dev", "bus", "usb"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var busEntries []os.DirEntry
+	err = usbBasePath.ExecuteNoFollow(func(path string) (err error) {
+		busEntries, err = os.ReadDir(path)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var rules []*devices.Rule
+	for _, busEntry := range busEntries {
+		if !busEntry.IsDir() {
+			continue
+		}
+		busPath, err := safepath.JoinNoFollow(usbBasePath, busEntry.Name())
+		if err != nil {
+			return nil, err
+		}
+		var devEntries []os.DirEntry
+		err = busPath.ExecuteNoFollow(func(path string) (err error) {
+			devEntries, err = os.ReadDir(path)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, devEntry := range devEntries {
+			devPath, err := safepath.JoinNoFollow(busPath, devEntry.Name())
+			if err != nil {
+				return nil, err
+			}
+			rule, err := newAllowedDeviceRule(devPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create device rule for USB device %s/%s: %v", busEntry.Name(), devEntry.Name(), err)
+			}
+			if rule != nil {
+				log.Log.V(loggingVerbosity).Infof("device rule for USB device %s/%s: %v", busEntry.Name(), devEntry.Name(), rule)
+				rules = append(rules, rule)
+			}
 		}
 	}
 	return rules, nil
