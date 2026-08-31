@@ -27820,6 +27820,13 @@ func schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationSpec(ref commo
 							Format:      "",
 						},
 					},
+					"relaxCPUCompatibility": {
+						SchemaProps: spec.SchemaProps{
+							Description: "RelaxCPUCompatibility disables CPU model, feature, and vendor nodeSelector injection for the migration target pod. Use as a temporary escape hatch when nodeSelector mismatches block migration during upgrades. Migration success is not guaranteed when this flag is set.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

@@ -15504,6 +15504,12 @@ var CRDsValidation map[string]string = map[string]string{
           required:
           - migrationID
           type: object
+        relaxCPUCompatibility:
+          description: |-
+            RelaxCPUCompatibility disables CPU model, feature, and vendor nodeSelector injection for the
+            migration target pod. Use as a temporary escape hatch when nodeSelector mismatches block
+            migration during upgrades. Migration success is not guaranteed when this flag is set.
+          type: boolean
         sendTo:
           description: If sendTo is specified, this VirtualMachineInstanceMigration
             will be considered the source
