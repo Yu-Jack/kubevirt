@@ -14011,6 +14011,12 @@ var CRDsValidation map[string]string = map[string]string{
       type: object
     spec:
       properties:
+        relaxCPUCompatibility:
+          description: |-
+            If set to true, the migration will skip CPU compatibility checks, allowing the VMI to be
+            migrated to nodes with different CPU models or features. Migration success is not guaranteed
+            when this is enabled. Defaults to false.
+          type: boolean
         vmiName:
           description: The name of the VMI to perform the migration on. VMI must exist
             in the migration objects namespace

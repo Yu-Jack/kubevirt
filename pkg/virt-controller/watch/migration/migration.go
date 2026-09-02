@@ -757,17 +757,27 @@ func (c *Controller) createTargetPod(migration *virtv1.VirtualMachineInstanceMig
 	templatePod.ObjectMeta.Labels[virtv1.MigrationJobLabel] = string(migration.UID)
 	templatePod.ObjectMeta.Annotations[virtv1.MigrationJobNameAnnotation] = migration.Name
 
-	// If cpu model is "host model" allow migration only to nodes that supports this cpu model
-	if cpu := vmi.Spec.Domain.CPU; cpu != nil && cpu.Model == virtv1.CPUModeHostModel {
-		node, err := c.getNodeForVMI(vmi)
-
-		if err != nil {
-			return err
+	if migration.Spec.RelaxCPUCompatibility != nil && *migration.Spec.RelaxCPUCompatibility {
+		for key := range templatePod.Spec.NodeSelector {
+			if strings.HasPrefix(key, virtv1.CPUModelLabel) || strings.HasPrefix(key, virtv1.CPUFeatureLabel) {
+				delete(templatePod.Spec.NodeSelector, key)
+			}
 		}
+		c.recorder.Eventf(migration, k8sv1.EventTypeWarning, "RelaxedCPUCompatibility",
+			"CPU compatibility checks are skipped; migration success is not guaranteed")
+	} else {
+		// If cpu model is "host model" allow migration only to nodes that supports this cpu model
+		if cpu := vmi.Spec.Domain.CPU; cpu != nil && cpu.Model == virtv1.CPUModeHostModel {
+			node, err := c.getNodeForVMI(vmi)
 
-		err = prepareNodeSelectorForHostCpuModel(node, templatePod, sourcePod)
-		if err != nil {
-			return err
+			if err != nil {
+				return err
+			}
+
+			err = prepareNodeSelectorForHostCpuModel(node, templatePod, sourcePod)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

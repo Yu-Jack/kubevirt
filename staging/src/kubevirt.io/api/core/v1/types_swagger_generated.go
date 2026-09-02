@@ -317,7 +317,8 @@ func (VirtualMachineInstanceMigrationList) SwaggerDoc() map[string]string {
 
 func (VirtualMachineInstanceMigrationSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"vmiName": "The name of the VMI to perform the migration on. VMI must exist in the migration objects namespace",
+		"vmiName":               "The name of the VMI to perform the migration on. VMI must exist in the migration objects namespace",
+		"relaxCPUCompatibility": "If set to true, the migration will skip CPU compatibility checks, allowing the VMI to be\nmigrated to nodes with different CPU models or features. Migration success is not guaranteed\nwhen this is enabled. Defaults to false.\n+optional",
 	}
 }
 

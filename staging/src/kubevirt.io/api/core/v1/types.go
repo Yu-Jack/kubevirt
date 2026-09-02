@@ -1385,6 +1385,11 @@ type VirtualMachineInstanceMigrationList struct {
 type VirtualMachineInstanceMigrationSpec struct {
 	// The name of the VMI to perform the migration on. VMI must exist in the migration objects namespace
 	VMIName string `json:"vmiName,omitempty" valid:"required"`
+	// If set to true, the migration will skip CPU compatibility checks, allowing the VMI to be
+	// migrated to nodes with different CPU models or features. Migration success is not guaranteed
+	// when this is enabled. Defaults to false.
+	// +optional
+	RelaxCPUCompatibility *bool `json:"relaxCPUCompatibility,omitempty"`
 }
 
 // VirtualMachineInstanceMigrationPhaseTransitionTimestamp gives a timestamp in relation to when a phase is set on a vmi

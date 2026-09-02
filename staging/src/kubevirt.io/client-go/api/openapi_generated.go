@@ -25665,6 +25665,13 @@ func schema_kubevirtio_api_core_v1_VirtualMachineInstanceMigrationSpec(ref commo
 							Format:      "",
 						},
 					},
+					"relaxCPUCompatibility": {
+						SchemaProps: spec.SchemaProps{
+							Description: "If set to true, the migration will skip CPU compatibility checks, allowing the VMI to be migrated to nodes with different CPU models or features. Migration success is not guaranteed when this is enabled. Defaults to false.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

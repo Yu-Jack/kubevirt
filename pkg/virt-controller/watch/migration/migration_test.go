@@ -1675,6 +1675,33 @@ var _ = Describe("Migration watcher", func() {
 			Entry("host-model should be targeted only to nodes which support the model", true),
 			Entry("non-host-model should not be targeted to nodes which support the model", false),
 		)
+
+		It("should strip CPU node selectors and emit warning when RelaxCPUCompatibility is true", func() {
+			vmi := newVirtualMachine("testvmi", virtv1.Running)
+			// Set a non-host-model CPU so that cpu-model and cpu-feature node selectors are rendered
+			vmi.Spec.Domain.CPU = &virtv1.CPU{Model: "Penryn"}
+
+			migration := newMigration("testmigration", vmi.Name, virtv1.MigrationPending)
+			migration.Spec.RelaxCPUCompatibility = pointer.P(true)
+
+			addMigration(migration)
+			addVirtualMachineInstance(vmi)
+			addPod(newSourcePodForVirtualMachine(vmi))
+
+			sanityExecute()
+
+			testutils.ExpectEvents(recorder, "RelaxedCPUCompatibility", virtcontroller.SuccessfulCreatePodReason)
+
+			pods, err := kubeClient.CoreV1().Pods(vmi.Namespace).List(context.Background(), metav1.ListOptions{
+				LabelSelector: fmt.Sprintf("%s=%s,%s=%s", virtv1.MigrationJobLabel, string(migration.UID), virtv1.CreatedByLabel, string(vmi.UID)),
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pods.Items).To(HaveLen(1))
+			for key := range pods.Items[0].Spec.NodeSelector {
+				Expect(key).ToNot(HavePrefix(virtv1.CPUModelLabel))
+				Expect(key).ToNot(HavePrefix(virtv1.CPUFeatureLabel))
+			}
+		})
 	})
 
 	Context("Migration with protected VMI (PDB)", func() {
